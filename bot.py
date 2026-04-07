@@ -126,3 +126,26 @@ if __name__ == '__main__':
     
     print("Saeid Alpha AI 👑 is now Deployed & Live!")
     application.run_polling()
+            await update.message.reply_text("You haven't described what kind of image you want. Example: `/img dynamic Free Fire gaming logo with a lion mascot`")
+            return
+        await process_image_request(update, image_prompt)
+        return
+    
+    response = get_ai_chat_response(user_text)
+    
+    # কোড ব্লক থাকলে সুন্দরভাবে ফরম্যাট করা
+    if "```" in response:
+        await update.message.reply_text(response, parse_mode=constants.ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text(response)
+
+# --- রানার ---
+if __name__ == '__main__':
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("img", generate_image))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    print("Saeid Alpha AI 👑 is now Deployed & Live!")
+    application.run_polling()
