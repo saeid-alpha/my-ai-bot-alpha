@@ -1,110 +1,111 @@
-import logging
-import requests
-import re
-import json
+import logging, requests
 from telegram import Update, constants, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# --- কনফিগারেশন ---
-TELEGRAM_TOKEN = '8515258058:AAG-QCqbpo1UvjRahnW9oLnb5TGbp2GG34A'
-CHAT_API_URL = "https://mn-chat-bot-api.vercel.app/chat"
-IMAGE_API_URL = "https://image.pollinations.ai/prompt/"
-DEVELOPER_CHANNEL = "https://t.me/+0wBM6TCW4QxjNmI1"
+# --- Configuration (Don't change spaces here) ---
+TOKEN = '8515258058:AAG-QCqbpo1UvjRahnW9oLnb5TGbp2GG34A'
+CHAT_API = "https://mn-chat-bot-api.vercel.app/chat"
+IMG_API = "https://image.pollinations.ai/prompt/"
+DEV_LINK = "https://t.me/+0wBM6TCW4QxjNmI1"
 
-# লগিং সেটআপ
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
-# --- প্রিমিয়াম সিস্টেম প্রম্পট (বুদ্ধিমত্তা যোগ করা) ---
-SYSTEM_INSTRUCTION = (
-    "Your name is Saeid Alpha AI 👑. You are a highly intelligent, professional, and elite AI assistant "
-    "specifically designed for Telegram. You are created by Saeid (@saeid9_90). "
-    "You are an expert in all programming languages including Python, PHP, HTML, JavaScript, C++, and Java. "
-    "When someone asks for code, provide clean, optimized, and well-commented code blocks. "
-    "You are helpful, friendly, and you always maintain your identity as 'Saeid Alpha AI 👑'."
-)
-
-# --- AI চ্যাট ফাংশন ---
-def get_ai_chat_response(user_text):
+# --- Ultra Intelligence Engine ---
+async def get_ai_response(user_text):
+    # বটের মধ্যে অতিরিক্ত বুদ্ধিমত্তা এবং কোডিং দক্ষতা যোগ করার ইনস্ট্রাকশন
+    intelligence_prompt = (
+        "Your name is Saeid Alpha AI 👑. You are a Senior Software Engineer and AI Specialist. "
+        "Created by Saeid (@saeid9_90), you are a professional Telegram assistant. "
+        "You have expert knowledge in Python, PHP, HTML, CSS, JavaScript, and Server Management. "
+        "When asked for code, always provide optimized, bug-free scripts in clean Markdown blocks. "
+        "If a user wants to build a bot or website, give them step-by-step professional guidance."
+    )
+    
     payload = {
         "messages": [
-            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "system", "content": intelligence_prompt},
             {"role": "user", "content": user_text}
         ]
     }
+    
     try:
-        response = requests.post(CHAT_API_URL, json=payload, timeout=50)
-        if response.status_code == 200:
-            data = response.json()
-            return data.get('response') or data.get('content') or "I am analyzing the data... please re-send."
-        return "⚠️ Server is busy. Please try again in a moment."
-    except Exception as e:
-        return f"🛠 System Error: {str(e)}"
+        r = requests.post(CHAT_API, json=payload, timeout=50)
+        data = r.json()
+        return data.get('response') or data.get('content') or "I am currently analyzing the logic... please retry."
+    except Exception:
+        return "⚠️ Error connecting to AI brain. Please check your network."
 
-# --- স্টার্ট কমান্ড ও প্রিমিয়াম বায়ো ---
+# --- Premium Bio & Start Interface ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    premium_bio = (
-        f"✨ **Saeid Alpha AI 👑 v2.0** ✨\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
+    # একটি প্রিমিয়াম বায়ো এবং ইন্টারফেস ডিজাইন
+    premium_ui = (
+        f"🌌 **Saeid Alpha AI 👑 v4.0 (Enterprise)**\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"👤 **User:** {user.first_name}\n"
-        f"🤖 **Status:** Online & Ready\n"
-        f"🛠 **Role:** Multi-Tasking AI Assistant\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🔥 **Main Features:**\n"
-        f"💻 **Expert Coding:** Python, PHP, HTML & more.\n"
-        f"🖼 **AI Vision:** Use `/img` for High-End Art.\n"
-        f"⚡ **Fast Execution:** No-lag AI Processing.\n\n"
-        f"💡 **Command:** Try `/img cyber-city` or ask any code!"
+        f"⚡ **System:** Online & Fully Intelligent\n"
+        f"🛠 **Role:** Expert Full-Stack Developer\n"
+        f"📡 **Server:** High-Performance Cloud\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"💎 **Exclusive Capabilities:**\n"
+        f"🚀 **Code Master:** Write/Debug Python, PHP & HTML.\n"
+        f"🎨 **Vision Art:** Generate images using `/img` command.\n"
+        f"🧠 **Deep Reasoning:** Solves complex logical problems.\n\n"
+        f"💬 **How can Saeid Alpha assist you today?**"
     )
     
-    keyboard = [
-        [InlineKeyboardButton("Developer 👨‍💻", url=DEVELOPER_CHANNEL)],
-        [InlineKeyboardButton("Official Channel 📢", url="https://t.me/saeid9_90")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
+    keyboard = [[InlineKeyboardButton("Developer & Support 👨‍💻", url=DEV_LINK)]]
     await update.message.reply_text(
-        premium_bio, 
-        parse_mode=constants.ParseMode.MARKDOWN,
-        reply_markup=reply_markup
+        premium_ui, 
+        parse_mode=constants.ParseMode.MARKDOWN, 
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# --- ইমেজ জেনারেশন ---
-async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# --- Professional Image Render ---
+async def img(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = " ".join(context.args)
     if not prompt:
-        await update.message.reply_text("❓ **Usage:** `/img futuristic car` ")
-        return
+        return await update.message.reply_text("❓ **Usage:** `/img futuristic cyberpunk lab` ")
 
-    wait_msg = await update.message.reply_text("⏳ **Saeid Alpha AI** is rendering your imagination...")
-    
-    encoded_prompt = requests.utils.quote(prompt)
-    image_url = f"{IMAGE_API_URL}{encoded_prompt}?width=1080&height=1080&model=flux&nologo=true"
-    
+    process_msg = await update.message.reply_text("⏳ **Saeid Alpha AI** is creating your art...")
+    encoded_query = requests.utils.quote(prompt)
+    image_url = f"{IMG_API}{encoded_query}?width=1024&height=1024&model=flux&nologo=true"
+
     try:
-        await update.message.reply_chat_action(action=constants.ChatAction.UPLOAD_PHOTO)
+        await update.message.reply_chat_action(constants.ChatAction.UPLOAD_PHOTO)
         await update.message.reply_photo(
-            photo=image_url, 
-            caption=f"✅ **Art by Saeid Alpha AI 👑**\n🎨 **Prompt:** {prompt}",
+            image_url, 
+            caption=f"🔥 **Premium Art Generated**\n📌 **Request:** {prompt}", 
             parse_mode=constants.ParseMode.MARKDOWN
         )
-        await wait_msg.delete()
-    except:
-        await wait_msg.edit_text("❌ Error generating image. Please try again.")
+        await process_msg.delete()
+    except Exception:
+        await process_msg.edit_text("❌ Failed to render image.")
 
-# --- স্মার্ট মেসেজ হ্যান্ডলার (Coding & Chat) ---
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text
-    if not user_text: return
+# --- Smart Message Handler ---
+async def handle_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if not text: return
 
-    await update.message.reply_chat_action(action=constants.ChatAction.TYPING)
+    await update.message.reply_chat_action(constants.ChatAction.TYPING)
+    response = await get_ai_response(text)
     
-    # কোডিং রিকোয়েস্ট কি না চেক করা (Simple Heuristic)
-    coding_keywords = ['python', 'php', 'html', 'code', 'script', 'programming']
+    # কোড ব্লক থাকলে সুন্দরভাবে ফরম্যাট করে পাঠানো
+    if "```" in response:
+        await update.message.reply_text(response, parse_mode=constants.ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text(response)
+
+# --- Run Application ---
+if __name__ == '__main__':
+    application = Application.builder().token(TOKEN).build()
     
-    response = get_ai_chat_response(user_text)
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("img", img))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_chat))
     
-    # যদি কোড থাকে তবে Markdown এ পাঠানো
+    print("Saeid Alpha AI 👑 is now Live and Intelligent!")
+    application.run_polling()
     if "```" in response:
         await update.message.reply_text(response, parse_mode=constants.ParseMode.MARKDOWN)
     else:
