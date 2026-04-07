@@ -4,108 +4,94 @@ import re
 from telegram import Update, constants, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# --- কনফিগারেশন ---
+# --- Configuration ---
 TELEGRAM_TOKEN = '8515258058:AAG-QCqbpo1UvjRahnW9oLnb5TGbp2GG34A'
 CHAT_API_URL = "https://mn-chat-bot-api.vercel.app/chat"
 IMAGE_API_URL = "https://image.pollinations.ai/prompt/"
-# আপনার দেওয়া ডেভেলপার চ্যানেলের লিঙ্ক
-DEVELOPER_CHANNEL_LINK = "https://t.me/+0wBM6TCW4QxjNmI1"
+DEVELOPER_CHANNEL = "https://t.me/+0wBM6TCW4QxjNmI1"
 
-# লগিং সেটআপ
+# Logging setup
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# --- AI রেসপন্স ফাংশন (Chat & Coding) ---
-def get_ai_chat_response(user_text):
+# --- Enhanced AI Logic ---
+SYSTEM_PROMPT = (
+    "Your name is Saeid Alpha AI 👑. You are a highly professional and intelligent AI bot operating on Telegram. "
+    "You were created by Saeid (@saeid9_90). You are an expert in coding (Python, PHP, HTML, CSS, JS, etc.). "
+    "Always provide code in clean markdown blocks. Be polite and helpful."
+)
+
+def get_ai_response(text):
     payload = {
         "messages": [
-            {
-                "role": "system", 
-                "content": "Your name is Saeid Alpha AI 👑. You are a high-end, professional AI developer created by Saeid. You provide expert solutions in coding, technology, and general knowledge. Always be polite and helpful. Do not mention your creators unless asked."
-            },
-            {"role": "user", "content": user_text}
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": text}
         ]
     }
     try:
-        response = requests.post(CHAT_API_URL, json=payload, timeout=45)
-        if response.status_code == 200:
-            data = response.json()
-            return data.get('response') or data.get('content') or "Processing request... please wait."
-        else:
-            return "Server connection error. Please try again."
-    except Exception as e:
-        return f"System Error: {str(e)}"
+        response = requests.post(CHAT_API_URL, json=payload, timeout=50)
+        data = response.json()
+        return data.get('response') or data.get('content') or "I am processing... please try again."
+    except:
+        return "⚠️ Server is busy. Please wait a moment."
 
-# --- স্টার্ট কমান্ড (/start) ---
+# --- Start Command & Premium Bio ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    welcome_text = (
-        f"👋 **Greetings, {user.first_name}!**\n\n"
-        f"Welcome to **Saeid Alpha AI 👑** — the ultimate terminal-based AI assistant for all your creative and technical needs.\n\n"
-        f"✨ **Advanced Capabilities:**\n"
-        f"🚀 **High-Speed Coding:** Instantly write, debug, and understand any code.\n"
-        f"🎨 **Photorealistic Image Gen:** Convert text to high-res, professional-grade images.\n"
-        f"🧠 **Knowledge Bot:** Expert level chat, advice, and problem-solving on any topic.\n\n"
-        f"💡 **Example Usage:**\n"
-        f"To chat: Simply type your message.\n"
-        f"To make a photo: Use `/img` followed by your request.\n"
-        f"   - `/img a professional gaming logo for Free Fire, Saeid Alpha text`"
+    bio = (
+        f"👑 **Saeid Alpha AI v2.0** 👑\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 **User:** {user.first_name}\n"
+        f"🤖 **Identity:** Professional Telegram AI\n"
+        f"💻 **Expertise:** All Programming Languages\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🌟 **Features:**\n"
+        f"🚀 **Fast Code:** Ask any Python/PHP/HTML logic.\n"
+        f"🎨 **AI Art:** Type `/img your_prompt`\n"
+        f"🧠 **Smart Chat:** Advanced problem solving.\n\n"
+        f"⚡ **Type anything to start chatting!**"
     )
     
-    # প্রফেশনাল ইনলাইন বাটন
-    keyboard = [
-        [InlineKeyboardButton("Follow Developer 👨‍💻", url=DEVELOPER_CHANNEL_LINK)],
-        [InlineKeyboardButton("Join Project Updates 📢", url="https://t.me/saeid9_90")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    keyboard = [[InlineKeyboardButton("Developer Channel 👨‍💻", url=DEVELOPER_CHANNEL)]]
+    await update.message.reply_text(bio, parse_mode=constants.ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
 
-    await update.message.reply_text(
-        welcome_text, 
-        parse_mode=constants.ParseMode.MARKDOWN,
-        reply_markup=reply_markup
-    )
-
-# --- ইমেজ জেনারেশন ফাংশন ---
-async def process_image_request(update: Update, prompt: str):
-    await update.message.reply_chat_action(action=constants.ChatAction.UPLOAD_PHOTO)
-    # সঠিক URL তৈরির জন্য prompt এনকোড করা
-    encoded_prompt = requests.utils.quote(prompt)
-    image_url = f"{IMAGE_API_URL}{encoded_prompt}?width=1024&height=1024&model=flux&enhance=true"
-    
-    try:
-        await update.message.reply_photo(
-            photo=image_url, 
-            caption=f"✅ **Generated by Saeid Alpha AI 👑**\n📌 **Prompt:** {prompt}",
-            parse_mode=constants.ParseMode.MARKDOWN
-        )
-    except Exception:
-        await update.message.reply_text("❌ Failed to generate the image. The server may be busy, please try again.")
-
-# --- ইমেজ জেনারেশন কমান্ড (/img) ---
+# --- Image Generation ---
 async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = " ".join(context.args)
     if not prompt:
-        await update.message.reply_text("⚠️ **Usage:** `/img [your visual description]`")
+        await update.message.reply_text("⚠️ Please provide a description. Example: `/img a red sports car`")
         return
-    await process_image_request(update, prompt)
 
-# --- স্মার্ট মেসেজ হ্যান্ডলার ---
+    await update.message.reply_chat_action(action=constants.ChatAction.UPLOAD_PHOTO)
+    encoded_prompt = requests.utils.quote(prompt)
+    image_url = f"{IMAGE_API_URL}{encoded_prompt}?width=1024&height=1024&model=flux"
+    
+    try:
+        await update.message.reply_photo(photo=image_url, caption=f"✅ **Art by Saeid Alpha AI 👑**\n📌 **Prompt:** {prompt}", parse_mode=constants.ParseMode.MARKDOWN)
+    except:
+        await update.message.reply_text("❌ Error generating image. Try again later.")
+
+# --- Message Handler ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     if not user_text: return
 
-    # টাইপিং ইন্ডিকেটর
     await update.message.reply_chat_action(action=constants.ChatAction.TYPING)
+    response = get_ai_response(user_text)
     
-    # ছবি তৈরির অনুরোধের জন্য চেক করা (কমান্ডের ভুল হলেও কাজ করবে)
-    image_keywords = ['ছবি তৈরি করে দিন', 'image তৈরি করুন', 'photo generate', 'ছবি তৈরি কর', 'মেক ফটো']
-    if any(keyword in user_text.lower() for keyword in image_keywords):
-        await update.message.reply_text("I understand you want to create an image. I will generate it now!")
-        # অনুরোধ থেকে প্রম্পট বের করা
-        image_prompt = re.sub(r'|'.join(map(re.escape, image_keywords)), '', user_text, flags=re.IGNORECASE).strip()
-        if not image_prompt:
-            await update.message.reply_text("You haven't described what kind of image you want. Example: `/img dynamic Free Fire gaming logo with a lion mascot`")
-            return
-        await process_image_request(update, image_prompt)
+    if "```" in response:
+        await update.message.reply_text(response, parse_mode=constants.ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text(response)
+
+# --- Main ---
+if __name__ == '__main__':
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("img", generate_image))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    print("Saeid Alpha AI 👑 is online!")
+    application.run_polling()
         return
     
     response = get_ai_chat_response(user_text)
