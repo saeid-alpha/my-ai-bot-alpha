@@ -1,105 +1,158 @@
-import logging, requests, asyncio, time
-from telegram import Update, constants, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import logging
+import aiohttp
+import asyncio
+import time
+from datetime import datetime
+from collections import defaultdict
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram.constants import ChatAction, ParseMode
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
-# --- Configuration ---
-TOKEN = '8515258058:AAG-QCqbpo1UvjRahnW9oLnb5TGbp2GG34A'
-CHAT_API = "https://mn-chat-bot-api.vercel.app/chat"
-IMG_API = "https://image.pollinations.ai/prompt/"
-DEV_LINK = "https://t.me/+0wBM6TCW4QxjNmI1"
+# --- CONFIG & SECURITY ---
+TELEGRAM_TOKEN = "8486840944:AAHPzM7-U3r3m3F_fQXr-4nrHqZE2GpeFfk"  # Replace with actual token
+VERSION = "3.0.1 (Premium Gold)"
 
-logging.basicConfig(level=logging.INFO)
+# Logging Configuration
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# --- Advanced Robust AI Engine ---
-async def get_ai_response(user_text):
+# Memory and Stats
+user_memory = defaultdict(list)
+user_stats = defaultdict(lambda: {"joined": datetime.now(), "requests": 0})
+
+# --- STYLING CONSTANTS ---
+HEADER = "💎 **SAEID ALPHA AI | PREMIUM** 💎\n"
+LINE = "━━━━━━━━━━━━━━━━━━━━\n"
+
+# --- CORE FUNCTIONS ---
+
+async def get_ai_response(user_id: int, user_name: str, user_text: str, mode: str="Professional"):
+    """Enhanced AI interaction with retry logic and personality."""
+    memory = user_memory[user_id][-8:]
     system_prompt = (
-        "Your name is Saeid Alpha AI 👑. You are a professional Senior Developer. "
-        "Your goal is to write high-quality code in Python, PHP, HTML, CSS, and JS. "
-        "Always provide complete scripts and use markdown code blocks. "
-        "Created by Saeid (@saeid9_90)."
+        f"You are Saeid Alpha AI 👑, a world-class assistant. "
+        f"User: {user_name}. Mode: {mode}. Be concise, intelligent, and helpful."
     )
     
     payload = {
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_text}
-        ]
-    }
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Content-Type": "application/json"
+        "messages": [{"role": "system", "content": system_prompt}] + memory + [{"role": "user", "content": user_text}]
     }
 
-    # কানেকশন এরর হ্যান্ডেল করার জন্য Retry Logic
-    for attempt in range(3): 
-        try:
-            r = await asyncio.to_thread(requests.post, CHAT_API, json=payload, headers=headers, timeout=90)
-            if r.status_code == 200:
-                data = r.json()
-                return data.get('response') or data.get('content') or "Analyzing... please wait."
-        except Exception as e:
-            logging.error(f"Attempt {attempt+1} failed: {e}")
-            await asyncio.sleep(2) # ২ সেকেন্ড অপেক্ষা করে আবার চেষ্টা করবে
-            
-    return "⚠️ AI Server is busy. Please try asking again in a few seconds."
+    async with aiohttp.ClientSession() as session:
+        for attempt in range(2): # Try twice
+            try:
+                async with session.post("https://mn-chat-bot-api.vercel.app/chat", json=payload, timeout=25) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return data.get("response", "Internal Error.")
+            except Exception as e:
+                if attempt == 1: return "❌ সার্ভার এখন ওভারলোডেড। একটু পর চেষ্টা করুন।"
+                await asyncio.sleep(1)
 
-# --- Ultra Premium Bio ---
+# --- TELEGRAM COMMANDS ---
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    premium_ui = (
-        f"👑 **Saeid Alpha AI v7.0 (Stable)** 👑\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 **Client:** {user.first_name}\n"
-        f"🧠 **Core:** Stable Intelligence v7\n"
-        f"💻 **Field:** Coding & Logical Reasoning\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🔥 **Capabilities:**\n"
-        f"✅ **Code Generator:** Professional scripts for any project.\n"
-        f"✅ **Error Fixer:** Debug your code and find logic flaws.\n"
-        f"🎨 **Image Creator:** Use `/img [prompt]` for art.\n\n"
-        f"💬 **How can Saeid Alpha assist your coding today?**"
+    user_stats[user.id]["requests"] += 1
+    
+    # Custom Keyboard for fast access
+    kb = [
+        [KeyboardButton("🎨 Generate Image"), KeyboardButton("🎭 Create Meme")],
+        [KeyboardButton("📝 Story Mode"), KeyboardButton("👤 Profile")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(kb, resize_keyboard=True)
+
+    welcome_msg = (
+        f"{HEADER}{LINE}"
+        f"স্বাগতম, **{user.first_name}**! 👑\n\n"
+        f"আমি একটি মেমরি-এনহ্যান্সড এআই। আপনি আমার সাথে চ্যাট করতে পারেন, "
+        f"ছবি বা মিম তৈরি করতে পারেন।\n\n"
+        f"👇 নিচের মেনু থেকে অপশন সিলেক্ট করুন।"
     )
-    keyboard = [[InlineKeyboardButton("Support Developer 👨‍💻", url=DEV_LINK)]]
-    await update.message.reply_text(premium_ui, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    await update.message.reply_text(welcome_msg, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
-# --- Professional Image Render ---
-async def img(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = " ".join(context.args)
-    if not prompt:
-        return await update.message.reply_text("❓ **Usage:** `/img futuristic programming setup` ")
+async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    stats = user_stats[user.id]
+    profile_text = (
+        f"{HEADER}{LINE}"
+        f"👤 **User:** {user.first_name}\n"
+        f"🆔 **ID:** `{user.id}`\n"
+        f"📊 **Requests:** {stats['requests']}\n"
+        f"📅 **Member Since:** {stats['joined'].strftime('%Y-%m-%d')}\n"
+        f"🌟 **Status:** Premium Member"
+    )
+    await update.message.reply_text(profile_text, parse_mode=ParseMode.MARKDOWN)
 
-    status_msg = await update.message.reply_text("⏳ **Saeid Alpha AI** is rendering your vision...")
-    url = f"{IMG_API}{requests.utils.quote(prompt)}?width=1024&height=1024&model=flux&nologo=true"
+# --- ENHANCED MEDIA HANDLERS ---
+
+async def media_flow(update: Update, prompt: str, api_url: str, media_type: str):
+    """Generic flow for Image, Meme, GIF to avoid code repetition."""
+    status_msg = await update.message.reply_text(f"✨ `{media_type}` তৈরির কাজ চলছে, অপেক্ষা করুন...")
     
     try:
-        await update.message.reply_chat_action(constants.ChatAction.UPLOAD_PHOTO)
-        await update.message.reply_photo(url, caption=f"✅ **Art by Saeid Alpha AI 👑**\n📌 {prompt}", parse_mode='Markdown')
-        await status_msg.delete()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(api_url, json={"prompt": prompt}) as resp:
+                data = await resp.json()
+                file_url = data.get(f"{media_type.lower()}_url")
+                
+                if file_url:
+                    await update.message.chat.send_action(ChatAction.UPLOAD_PHOTO)
+                    if media_type == "GIF":
+                        await update.message.reply_animation(file_url, caption=f"✅ {prompt}")
+                    else:
+                        await update.message.reply_photo(file_url, caption=f"✨ Generated by Saeid Alpha AI")
+                    await status_msg.delete()
+                else:
+                    await status_msg.edit_text("❌ দুঃখিত, জেনারেট করা সম্ভব হয়নি।")
     except:
-        await status_msg.edit_text("❌ Render failed. Please try again.")
+        await status_msg.edit_text("⚠️ এপিআই এরর! পরে চেষ্টা করুন।")
 
-# --- Stable Chat Handler ---
-async def handle_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.text: return
-    await update.message.reply_chat_action(constants.ChatAction.TYPING)
-    
-    response = await get_ai_response(update.message.text)
-    
-    try:
-        if "```" in response:
-            await update.message.reply_text(response, parse_mode=constants.ParseMode.MARKDOWN)
-        else:
-            await update.message.reply_text(response)
-    except:
-        await update.message.reply_text(response)
+# --- MESSAGE LOGIC ---
 
-# --- Launcher ---
-if __name__ == '__main__':
-    app = Application.builder().token(TOKEN).build()
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    user = update.effective_user
+    user_stats[user.id]["requests"] += 1
+
+    # Route buttons to functions
+    if text == "🎨 Generate Image":
+        return await update.message.reply_text("🖼 ছবি বানাতে লিখুন: `/image your_prompt`", parse_mode=ParseMode.MARKDOWN)
+    if text == "👤 Profile":
+        return await profile_handler(update, context)
+    if text == "🎭 Create Meme":
+        return await update.message.reply_text("🎭 মিম বানাতে লিখুন: `/meme text`", parse_mode=ParseMode.MARKDOWN)
+
+    # General AI Chat
+    await update.message.chat.send_action(ChatAction.TYPING)
+    reply = await get_ai_response(user.id, user.first_name, text)
+    
+    # Update memory
+    user_memory[user.id].append({"role": "user", "content": text})
+    user_memory[user.id].append({"role": "assistant", "content": reply})
+    
+    await update.message.reply_text(f"👑 **Saeid Alpha:**\n\n{reply}", parse_mode=ParseMode.MARKDOWN)
+
+# --- MAIN SETUP ---
+
+def main():
+    # Build Application
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+
+    # Add Command Handlers
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("img", img))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_chat))
+    app.add_handler(CommandHandler("profile", profile_handler))
     
-    print("Saeid Alpha AI v7.0 is Online!")
+    # Support for /image, /meme as before
+    app.add_handler(CommandHandler("image", lambda u, c: media_flow(u, " ".join(c.args), "https://mn-chat-bot-api.vercel.app/image", "Image") if c.args else u.message.reply_text("Prompt দিন!")))
+    app.add_handler(CommandHandler("meme", lambda u, c: media_flow(u, " ".join(c.args), "https://mn-chat-bot-api.vercel.app/meme", "Meme") if c.args else u.message.reply_text("Prompt দিন!")))
+
+    # Text Handler
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+
+    print(f"--- Saeid Alpha AI {VERSION} is Live ---")
     app.run_polling()
+
+if __name__ == "__main__":
+    main()
