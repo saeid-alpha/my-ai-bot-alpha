@@ -1,6 +1,3 @@
 python-telegram-bot
 aiohttp
 flask
-gTTS
-requests
-pillow
