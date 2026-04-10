@@ -1,105 +1,95 @@
-import logging, requests, asyncio, time
-from telegram import Update, constants, InlineKeyboardButton, InlineKeyboardMarkup
+import logging
+import aiohttp
+import asyncio
+import os
+from flask import Flask # à¦¨à¦¤à§à¦¨ à¦¯à§‹à¦— à¦•à¦°à¦¾ à¦¹à§Ÿà§‡à¦›à§‡
+from threading import Thread # à¦¨à¦¤à§à¦¨ à¦¯à§‹à¦— à¦•à¦°à¦¾ à¦¹à§Ÿà§‡à¦›à§‡
+from datetime import datetime
+from collections import defaultdict
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram.constants import ChatAction, ParseMode
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# --- Configuration ---
-TOKEN = '8515258058:AAG-QCqbpo1UvjRahnW9oLnb5TGbp2GG34A'
-CHAT_API = "https://mn-chat-bot-api.vercel.app/chat"
-IMG_API = "https://image.pollinations.ai/prompt/"
-DEV_LINK = "https://t.me/+0wBM6TCW4QxjNmI1"
+# --- FLASK SERVER FOR PORT ---
+app_flask = Flask(__name__)
 
-logging.basicConfig(level=logging.INFO)
+@app_flask.route('/')
+def home():
+    return "Saeid Alpha AI is Running!"
 
-# --- Advanced Robust AI Engine ---
-async def get_ai_response(user_text):
-    system_prompt = (
-        "Your name is Saeid Alpha AI ðŸ‘‘. You are a professional Senior Developer. "
-        "Your goal is to write high-quality code in Python, PHP, HTML, CSS, and JS. "
-        "Always provide complete scripts and use markdown code blocks. "
-        "Created by Saeid (@saeid9_90)."
-    )
-    
-    payload = {
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_text}
-        ]
-    }
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Content-Type": "application/json"
-    }
+def run():
+    # Render à¦¡à¦¿à¦«à¦²à§à¦Ÿà¦­à¦¾à¦¬à§‡ à§§à§¦à§¦à§¦à§¦ à¦ªà§‹à¦°à§à¦Ÿ à¦¬à§à¦¯à¦¬à¦¹à¦¾à¦° à¦•à¦°à§‡
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host='0.0.0.0', port=port)
 
-    # à¦•à¦¾à¦¨à§‡à¦•à¦¶à¦¨ à¦à¦°à¦° à¦¹à§à¦¯à¦¾à¦¨à§à¦¡à§‡à¦² à¦•à¦°à¦¾à¦° à¦œà¦¨à§à¦¯ Retry Logic
-    for attempt in range(3): 
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# --- CONFIG & SECURITY ---
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL")
+CHANNEL_LINK = "https://t.me/saeid_alpha_9"
+AD_SITE_LINK = os.getenv("AD_SITE_LINK", "https://t.me/saeid_alpha_9")
+VERSION = "5.0.0 (Web Port Enabled)"
+
+# Logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# Memory and Stats
+user_memory = defaultdict(list)
+user_stats = defaultdict(lambda: {"joined": datetime.now(), "requests": 0})
+
+# --- STYLING & KEYBOARDS ---
+HEADER = "âœ¨ <b>SAEID ALPHA AI | PREMIUM</b> âœ¨\n"
+LINE = "<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>\n"
+
+def main_menu_keyboard():
+    kb = [[KeyboardButton("ðŸŽ¨ à¦à¦†à¦‡ à¦‡à¦®à§‡à¦œ"), KeyboardButton("ðŸŽ­ à¦®à§‡à¦® à¦®à§‡à¦•à¦¾à¦°")],
+          [KeyboardButton("ðŸ’° à¦Ÿà¦¾à¦•à¦¾ à¦†à§Ÿ à¦•à¦°à§à¦¨"), KeyboardButton("ðŸ‘¤ à¦ªà§à¦°à§‹à¦«à¦¾à¦‡à¦²")]]
+    return ReplyKeyboardMarkup(kb, resize_keyboard=True)
+
+def income_keyboard():
+    return InlineKeyboardMarkup([[InlineKeyboardButton("ðŸ”— à¦…à§à¦¯à¦¾à¦¡ à¦¦à§‡à¦–à§‡ à¦†à§Ÿ à¦•à¦°à§à¦¨", url=AD_SITE_LINK)],
+                                 [InlineKeyboardButton("ðŸ“¢ à¦…à¦«à¦¿à¦¸à¦¿à§Ÿà¦¾à¦² à¦šà§à¦¯à¦¾à¦¨à§‡à¦²", url=CHANNEL_LINK)]])
+
+# --- CORE FUNCTIONS ---
+async def get_ai_response(user_id, user_name, user_text):
+    payload = {"messages": [{"role": "system", "content": f"You are Saeid Alpha AI. User: {user_name}."}] + user_memory[user_id][-5:] + [{"role": "user", "content": user_text}]}
+    async with aiohttp.ClientSession() as session:
         try:
-            r = await asyncio.to_thread(requests.post, CHAT_API, json=payload, headers=headers, timeout=90)
-            if r.status_code == 200:
-                data = r.json()
-                return data.get('response') or data.get('content') or "Analyzing... please wait."
-        except Exception as e:
-            logging.error(f"Attempt {attempt+1} failed: {e}")
-            await asyncio.sleep(2) # à§¨ à¦¸à§‡à¦•à§‡à¦¨à§à¦¡ à¦…à¦ªà§‡à¦•à§à¦·à¦¾ à¦•à¦°à§‡ à¦†à¦¬à¦¾à¦° à¦šà§‡à¦·à§à¦Ÿà¦¾ à¦•à¦°à¦¬à§‡
-            
-    return "âš ï¸ AI Server is busy. Please try asking again in a few seconds."
+            async with session.post(f"{API_BASE_URL}/chat", json=payload, timeout=25) as resp:
+                data = await resp.json()
+                return data.get("response", "à¦¸à¦¾à¦°à§à¦­à¦¾à¦° à¦°à§‡à¦¸à¦ªà¦¨à§à¦¸ à¦¦à¦¿à¦šà§à¦›à§‡ à¦¨à¦¾à¥¤")
+        except: return "âŒ à¦à¦ªà¦¿à¦†à¦‡ à¦•à¦¾à¦¨à§‡à¦•à¦¶à¦¨ à¦à¦°à¦°!"
 
-# --- Ultra Premium Bio ---
+# --- HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"{HEADER}{LINE}à¦¸à§à¦¬à¦¾à¦—à¦¤à¦®! à¦†à¦®à¦¿ à¦à¦–à¦¨ à¦“à§Ÿà§‡à¦¬ à¦ªà§‹à¦°à§à¦Ÿà§‡ à¦²à¦¾à¦‡à¦­ à¦†à¦›à¦¿à¥¤", reply_markup=main_menu_keyboard(), parse_mode=ParseMode.HTML)
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
     user = update.effective_user
-    premium_ui = (
-        f"ðŸ‘‘ **Saeid Alpha AI v7.0 (Stable)** ðŸ‘‘\n"
-        f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
-        f"ðŸ‘¤ **Client:** {user.first_name}\n"
-        f"ðŸ§  **Core:** Stable Intelligence v7\n"
-        f"ðŸ’» **Field:** Coding & Logical Reasoning\n"
-        f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n\n"
-        f"ðŸ”¥ **Capabilities:**\n"
-        f"âœ… **Code Generator:** Professional scripts for any project.\n"
-        f"âœ… **Error Fixer:** Debug your code and find logic flaws.\n"
-        f"ðŸŽ¨ **Image Creator:** Use `/img [prompt]` for art.\n\n"
-        f"ðŸ’¬ **How can Saeid Alpha assist your coding today?**"
-    )
-    keyboard = [[InlineKeyboardButton("Support Developer ðŸ‘¨â€ðŸ’»", url=DEV_LINK)]]
-    await update.message.reply_text(premium_ui, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
-
-# --- Professional Image Render ---
-async def img(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = " ".join(context.args)
-    if not prompt:
-        return await update.message.reply_text("â“ **Usage:** `/img futuristic programming setup` ")
-
-    status_msg = await update.message.reply_text("â³ **Saeid Alpha AI** is rendering your vision...")
-    url = f"{IMG_API}{requests.utils.quote(prompt)}?width=1024&height=1024&model=flux&nologo=true"
+    if text == "ðŸ’° à¦Ÿà¦¾à¦•à¦¾ à¦†à§Ÿ à¦•à¦°à§à¦¨":
+        return await update.message.reply_text("ðŸ’° à¦…à§à¦¯à¦¾à¦¡ à¦¦à§‡à¦–à§‡ à¦†à§Ÿ à¦•à¦°à¦¤à§‡ à¦¨à¦¿à¦šà§‡à¦° à¦¬à¦¾à¦Ÿà¦¨à§‡ à¦•à§à¦²à¦¿à¦• à¦•à¦°à§à¦¨à¥¤", reply_markup=income_keyboard(), parse_mode=ParseMode.HTML)
     
-    try:
-        await update.message.reply_chat_action(constants.ChatAction.UPLOAD_PHOTO)
-        await update.message.reply_photo(url, caption=f"âœ… **Art by Saeid Alpha AI ðŸ‘‘**\nðŸ“Œ {prompt}", parse_mode='Markdown')
-        await status_msg.delete()
-    except:
-        await status_msg.edit_text("âŒ Render failed. Please try again.")
+    await update.message.chat.send_action(ChatAction.TYPING)
+    reply = await get_ai_response(user.id, user.first_name, text)
+    await update.message.reply_text(f"âœ¨ <b>Saeid Alpha:</b>\n\n{reply}", parse_mode=ParseMode.HTML)
 
-# --- Stable Chat Handler ---
-async def handle_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.text: return
-    await update.message.reply_chat_action(constants.ChatAction.TYPING)
+# --- MAIN ---
+def main():
+    if not TELEGRAM_TOKEN: return
     
-    response = await get_ai_response(update.message.text)
+    # à¦«à§à¦²à§à¦¯à¦¾à¦¸à§à¦• à¦¸à¦¾à¦°à§à¦­à¦¾à¦° à¦šà¦¾à¦²à§ à¦•à¦°à¦¾ à¦¹à¦šà§à¦›à§‡ (Port Bind à¦•à¦°à¦¾à¦° à¦œà¦¨à§à¦¯)
+    keep_alive()
     
-    try:
-        if "```" in response:
-            await update.message.reply_text(response, parse_mode=constants.ParseMode.MARKDOWN)
-        else:
-            await update.message.reply_text(response)
-    except:
-        await update.message.reply_text(response)
-
-# --- Launcher ---
-if __name__ == '__main__':
-    app = Application.builder().token(TOKEN).build()
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("img", img))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_chat))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     
-    print("Saeid Alpha AI v7.0 is Online!")
+    print(f"Saeid Alpha AI {VERSION} is Live on Web Port!")
     app.run_polling()
+
+if __name__ == "__main__":
+    main()
