@@ -1,142 +1,105 @@
-import logging
-import aiohttp
-import asyncio
-import os
-from datetime import datetime
-from collections import defaultdict
-from flask import Flask
-from threading import Thread
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
-from telegram.constants import ChatAction, ParseMode
+import logging, requests, asyncio, time
+from telegram import Update, constants, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# --- CONFIG & SECURITY ---
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-API_BASE_URL = os.getenv("API_BASE_URL")
-VERSION = "4.1.0 (Ultra Premium Gold)"
-PORT = int(os.environ.get("PORT", 10000)) # Render-এর জন্য পোর্ট
+# --- Configuration ---
+TOKEN = '8515258058:AAG-QCqbpo1UvjRahnW9oLnb5TGbp2GG34A'
+CHAT_API = "https://mn-chat-bot-api.vercel.app/chat"
+IMG_API = "https://image.pollinations.ai/prompt/"
+DEV_LINK = "https://t.me/+0wBM6TCW4QxjNmI1"
 
-# Logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
-# --- FLASK SERVER FOR RENDER ---
-app_flask = Flask(__name__)
-
-@app_flask.route('/')
-def health_check():
-    return "Bot is Running!", 200
-
-def run_flask():
-    app_flask.run(host='0.0.0.0', port=PORT)
-
-# --- MEMORY ---
-user_memory = defaultdict(list)
-user_stats = defaultdict(lambda: {"joined": datetime.now(), "requests": 0})
-
-# --- STYLING ---
-HEADER = "✨ <b>SAEID ALPHA AI | PREMIUM GOLD</b> ✨\n"
-LINE = "<b>━━━━━━━━━━━━━━━━━━━━━</b>\n"
-FOOTER = "\n<i>Powered by Saeid Dev Team 👑</i>"
-
-# --- CORE FUNCTIONS ---
-async def get_ai_response(user_id: int, user_name: str, user_text: str):
-    # মেমোরি ম্যানেজমেন্ট (সর্বশেষ ৮টি মেসেজ)
-    memory = user_memory[user_id][-8:]
-    system_prompt = f"You are Saeid Alpha AI 👑. User: {user_name}. Be creative and helpful."
+# --- Advanced Robust AI Engine ---
+async def get_ai_response(user_text):
+    system_prompt = (
+        "Your name is Saeid Alpha AI ðŸ‘‘. You are a professional Senior Developer. "
+        "Your goal is to write high-quality code in Python, PHP, HTML, CSS, and JS. "
+        "Always provide complete scripts and use markdown code blocks. "
+        "Created by Saeid (@saeid9_90)."
+    )
     
     payload = {
-        "messages": [{"role": "system", "content": system_prompt}] + memory + [{"role": "user", "content": user_text}]
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_text}
+        ]
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Content-Type": "application/json"
     }
 
-    async with aiohttp.ClientSession() as session:
+    # à¦•à¦¾à¦¨à§‡à¦•à¦¶à¦¨ à¦à¦°à¦° à¦¹à§à¦¯à¦¾à¦¨à§à¦¡à§‡à¦² à¦•à¦°à¦¾à¦° à¦œà¦¨à§à¦¯ Retry Logic
+    for attempt in range(3): 
         try:
-            async with session.post(f"{API_BASE_URL}/chat", json=payload, timeout=25) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data.get("response", "সার্ভার থেকে সঠিক তথ্য পাওয়া যায়নি।")
-                else:
-                    return f"❌ API Error: Status {resp.status}"
-        except asyncio.TimeoutError:
-            return "⏳ রেসপন্স আসতে দেরি হচ্ছে, দয়া করে আবার চেষ্টা করুন।"
+            r = await asyncio.to_thread(requests.post, CHAT_API, json=payload, headers=headers, timeout=90)
+            if r.status_code == 200:
+                data = r.json()
+                return data.get('response') or data.get('content') or "Analyzing... please wait."
         except Exception as e:
-            logger.error(f"AI Error: {e}")
-            return "❌ এপিআই কানেকশন এরর বা ইন্টারনাল সমস্যা!"
+            logging.error(f"Attempt {attempt+1} failed: {e}")
+            await asyncio.sleep(2) # à§¨ à¦¸à§‡à¦•à§‡à¦¨à§à¦¡ à¦…à¦ªà§‡à¦•à§à¦·à¦¾ à¦•à¦°à§‡ à¦†à¦¬à¦¾à¦° à¦šà§‡à¦·à§à¦Ÿà¦¾ à¦•à¦°à¦¬à§‡
+            
+    return "âš ï¸ AI Server is busy. Please try asking again in a few seconds."
 
-# --- KEYBOARDS ---
-def main_menu_keyboard():
-    kb = [
-        [KeyboardButton("🎨 এআই ইমেজ"), KeyboardButton("🎭 মেম মেকার")],
-        [KeyboardButton("👤 প্রোফাইল"), KeyboardButton("📜 সাহায্য")]
-    ]
-    return ReplyKeyboardMarkup(kb, resize_keyboard=True)
-
-# --- HANDLERS ---
+# --- Ultra Premium Bio ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user = update.effective_user
-        user_stats[user.id]["requests"] += 1
-        
-        welcome_text = (
-            f"{HEADER}{LINE}"
-            f"স্বাগতম, <b>{user.first_name}</b>! 🌟\n\n"
-            f"আমি আপনার পার্সোনাল এআই অ্যাসিস্ট্যান্ট। "
-            f"নিচের মেনু ব্যবহার করে প্রিমিয়াম টুলসগুলো ট্রাই করুন।\n\n"
-            f"💬 <b>চ্যাট করতে সরাসরি মেসেজ দিন!</b>\n"
-            f"{LINE}{FOOTER}"
-        )
-        await update.message.reply_text(welcome_text, reply_markup=main_menu_keyboard(), parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logger.error(f"Start Error: {e}")
-
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
-
-    text = update.message.text
     user = update.effective_user
-    user_stats[user.id]["requests"] += 1
+    premium_ui = (
+        f"ðŸ‘‘ **Saeid Alpha AI v7.0 (Stable)** ðŸ‘‘\n"
+        f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
+        f"ðŸ‘¤ **Client:** {user.first_name}\n"
+        f"ðŸ§  **Core:** Stable Intelligence v7\n"
+        f"ðŸ’» **Field:** Coding & Logical Reasoning\n"
+        f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n\n"
+        f"ðŸ”¥ **Capabilities:**\n"
+        f"âœ… **Code Generator:** Professional scripts for any project.\n"
+        f"âœ… **Error Fixer:** Debug your code and find logic flaws.\n"
+        f"ðŸŽ¨ **Image Creator:** Use `/img [prompt]` for art.\n\n"
+        f"ðŸ’¬ **How can Saeid Alpha assist your coding today?**"
+    )
+    keyboard = [[InlineKeyboardButton("Support Developer ðŸ‘¨â€ðŸ’»", url=DEV_LINK)]]
+    await update.message.reply_text(premium_ui, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
 
+# --- Professional Image Render ---
+async def img(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    prompt = " ".join(context.args)
+    if not prompt:
+        return await update.message.reply_text("â“ **Usage:** `/img futuristic programming setup` ")
+
+    status_msg = await update.message.reply_text("â³ **Saeid Alpha AI** is rendering your vision...")
+    url = f"{IMG_API}{requests.utils.quote(prompt)}?width=1024&height=1024&model=flux&nologo=true"
+    
     try:
-        if text == "🎨 এআই ইমেজ":
-            return await update.message.reply_text("🖼 <b>ইমেজ জেনারেটর:</b>\nলিখুন: <code>/image prompt</code>", parse_mode=ParseMode.HTML)
-        
-        if text == "👤 প্রোফাইল":
-            stats = user_stats[user.id]
-            profile_text = (f"👤 <b>Name:</b> {user.first_name}\n📊 <b>Queries:</b> {stats['requests']}\n🏆 <b>Status:</b> PREMIUM")
-            return await update.message.reply_text(profile_text, parse_mode=ParseMode.HTML)
+        await update.message.reply_chat_action(constants.ChatAction.UPLOAD_PHOTO)
+        await update.message.reply_photo(url, caption=f"âœ… **Art by Saeid Alpha AI ðŸ‘‘**\nðŸ“Œ {prompt}", parse_mode='Markdown')
+        await status_msg.delete()
+    except:
+        await status_msg.edit_text("âŒ Render failed. Please try again.")
 
-        # AI Chat
-        await update.message.chat.send_action(ChatAction.TYPING)
-        reply = await get_ai_response(user.id, user.first_name, text)
-        
-        # Save Memory
-        user_memory[user.id].append({"role": "user", "content": text})
-        user_memory[user.id].append({"role": "assistant", "content": reply})
-        
-        await update.message.reply_text(f"✨ <b>Saeid Alpha:</b>\n\n{reply}\n\n{LINE}", parse_mode=ParseMode.HTML)
-        
-    except Exception as e:
-        logger.error(f"Text Handler Error: {e}")
-        await update.message.reply_text("⚠️ দুঃখিত, কিছু একটা ভুল হয়েছে।")
+# --- Stable Chat Handler ---
+async def handle_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.text: return
+    await update.message.reply_chat_action(constants.ChatAction.TYPING)
+    
+    response = await get_ai_response(update.message.text)
+    
+    try:
+        if "```" in response:
+            await update.message.reply_text(response, parse_mode=constants.ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text(response)
+    except:
+        await update.message.reply_text(response)
 
-# --- MAIN ---
-def main():
-    if not TELEGRAM_TOKEN:
-        logger.error("TELEGRAM_TOKEN missing!")
-        return
-
-    # Flask রান করার জন্য আলাদা থ্রেড
-    Thread(target=run_flask, daemon=True).start()
-
-    # Bot Build
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
-
+# --- Launcher ---
+if __name__ == '__main__':
+    app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-
-    print(f"--- Saeid Alpha AI {VERSION} is Active on Port {PORT} ---")
-    app.run_polling(drop_pending_updates=True)
-
-if __name__ == "__main__":
-    main()
+    app.add_handler(CommandHandler("img", img))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_chat))
+    
+    print("Saeid Alpha AI v7.0 is Online!")
+    app.run_polling()
